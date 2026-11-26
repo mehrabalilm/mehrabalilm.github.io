@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://hamodedarwish86-creator.github.io/sitemap.xml

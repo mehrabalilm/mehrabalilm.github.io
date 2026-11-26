@@ -1,0 +1,19 @@
+{
+  "name": "محراب العلم",
+  "short_name": "محراب العلم",
+  "description": "تحفة الأطفال والجزرية بالشرح والصوت، المصحف كاملاً، الأذكار، ومواقيت الصلاة.",
+  "lang": "ar",
+  "dir": "rtl",
+  "id": "./",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#07110f",
+  "theme_color": "#07110f",
+  "icons": [
+    { "src": "https://mehrab-alilm.surge.sh/icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "https://mehrab-alilm.surge.sh/icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "https://mehrab-alilm.surge.sh/icons/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
