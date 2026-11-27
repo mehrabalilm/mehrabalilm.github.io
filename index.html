@@ -311,11 +311,10 @@ footer .src{color:var(--ink-dim)}
 .qbox.qok{border-color:var(--green);box-shadow:0 0 18px rgba(63,156,120,.45)}
 .qwrap{position:relative;width:210px;height:210px;margin:0 auto}
 .qdial{position:absolute;inset:0;border-radius:50%;border:2px solid var(--gold-dim);background:radial-gradient(circle,var(--bg2),var(--bg));transition:transform .1s linear}
-.qdial span{position:absolute;font-size:15px;color:var(--ink-dim)}
-.qdial .qn{top:6px;left:50%;transform:translateX(-50%);color:var(--gold2);font-weight:700}
-.qdial .qs{bottom:6px;left:50%;transform:translateX(-50%)}
-.qdial .qe{right:8px;top:50%;transform:translateY(-50%)}
-.qdial .qw{left:8px;top:50%;transform:translateY(-50%)}
+.qdial{--hd:0deg}
+.qlbl{position:absolute;inset:0;transform:rotate(var(--a))}
+.qlbl b{position:absolute;top:7px;left:50%;margin-left:-14px;width:28px;text-align:center;font:700 17px/1 system-ui,'Noto Kufi Arabic',sans-serif;color:var(--ink-dim);transform:rotate(calc(-1 * var(--a) + var(--hd)))}
+.qlbl.n b{color:var(--gold2)}
 .qarrow{position:absolute;inset:0;transition:transform .1s linear;pointer-events:none}
 .qarrow::before{content:"";position:absolute;left:50%;top:32px;bottom:50%;width:4px;margin-left:-2px;background:linear-gradient(var(--gold2),var(--gold));border-radius:3px}
 .qtip{position:absolute;left:50%;top:6px;transform:translateX(-50%);font-size:30px;line-height:1}
@@ -353,6 +352,7 @@ nav.bottom a .ico{font-size:18px}
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="محراب العلم">
 <link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" type="image/png" href="icons/icon-192-v3.png">
 <link rel="apple-touch-icon" href="icons/apple-touch-icon-v3.png">
 </head>
 <body>
@@ -1987,7 +1987,7 @@ async function startQibla(){
     const rot=(q-_qHeading+360)%360;
     const arrow=document.getElementById('qarrow'), dial=document.getElementById('qdial');
     if(arrow) arrow.style.transform=`rotate(${rot}deg)`;
-    if(dial) dial.style.transform=`rotate(${-_qHeading}deg)`;
+    if(dial){ dial.style.transform=`rotate(${-_qHeading}deg)`; dial.style.setProperty('--hd',_qHeading+'deg'); }
     const hd=document.getElementById('qhead'); if(hd) hd.textContent='اتجاه هاتفك: '+AR_NUM(Math.round(_qHeading))+'°';
     const diff=Math.min(rot,360-rot), ok=diff<=4;
     const box=document.getElementById('qbox'); if(box) box.classList.toggle('qok',ok);
@@ -2015,7 +2015,7 @@ function vQibla(){
     <button class="btn" onclick="qLoc()">📍 موقعي</button>
   </div>
   <div id="qbox" class="qbox">
-    <div class="qwrap"><div id="qdial" class="qdial"><span class="qn">ش</span><span class="qe">ق</span><span class="qs">ج</span><span class="qw">غ</span></div>
+    <div class="qwrap"><div id="qdial" class="qdial"><div class="qlbl n" style="--a:0deg"><b>ش</b></div><div class="qlbl" style="--a:90deg"><b>ق</b></div><div class="qlbl" style="--a:180deg"><b>ج</b></div><div class="qlbl" style="--a:270deg"><b>غ</b></div></div>
       <div id="qarrow" class="qarrow" style="transform:rotate(${q}deg)"><div class="qtip">🕋</div></div></div>
     <div class="qdeg ruqaa">${AR_NUM(Math.round(q))}° من الشمال</div>
     <div id="qmsg" class="qmsg"></div>
