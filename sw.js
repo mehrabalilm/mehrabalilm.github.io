@@ -1,4 +1,4 @@
-const CACHE = 'mehrab-v14';
+const CACHE = 'mehrab-v15';
 const ASSETS = ['./', './index.html', './manifest.webmanifest', './icons/icon-192.png', './icons/icon-512.png',
   ];
 self.addEventListener('install', e => {
@@ -24,4 +24,25 @@ self.addEventListener('fetch', e => {
       return hit || net;
     })
   );
+});
+
+self.addEventListener('push', e => {
+  let d = {};
+  try { d = e.data ? e.data.json() : {}; } catch (_) {}
+  e.waitUntil(self.registration.showNotification(d.title || 'محرابُ العلم', {
+    body: d.body || 'حان موعد الصلاة',
+    icon: './icons/icon-192.png',
+    badge: './icons/icon-192.png',
+    tag: d.tag || 'prayer',
+    renotify: true,
+    dir: 'rtl',
+    lang: 'ar'
+  }));
+});
+self.addEventListener('notificationclick', e => {
+  e.notification.close();
+  e.waitUntil(self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then(list => {
+    for (const c of list) { if ('focus' in c) return c.focus(); }
+    return self.clients.openWindow('./');
+  }));
 });

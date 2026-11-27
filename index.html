@@ -63,6 +63,10 @@ a{color:var(--gold2);text-decoration:none}
 .container{max-width:860px;margin:0 auto;padding:0 16px}
 
 /* ---------- header ---------- */
+
+.wa-follow{display:inline-flex;align-items:center;gap:8px;margin-top:12px;padding:7px 16px;border:1px solid var(--gold-dim);border-radius:999px;background:rgba(63,156,120,.12);color:var(--gold2);font-size:14px;line-height:1.4}
+.wa-follow svg{width:18px;height:18px;fill:#25D366;flex:none}
+.wa-follow:hover{background:rgba(63,156,120,.22);border-color:var(--gold)}
 header.top{
   text-align:center;padding:34px 16px 22px;position:relative;
   background:radial-gradient(ellipse 80% 60% at 50% 0%,rgba(201,162,39,.13),transparent 70%);
@@ -342,6 +346,7 @@ nav.bottom a .ico{font-size:18px}
   <div class="credit">made by Mohamed Darweesh</div>
   <div class="brand ruqaa" id="siteName">محرابُ العلم</div>
   <div class="tagline">تعلَّم التجويد واقرأ القرآن الكريم</div>
+  <a class="wa-follow" href="https://whatsapp.com/channel/0029VbEBmOYFsn0i3zqH580V" target="_blank" rel="noopener noreferrer"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M17.5 14.4c-.3-.1-1.7-.8-2-.9-.3-.1-.5-.1-.7.1-.2.3-.8.9-.9 1.1-.2.2-.3.2-.6.1-.3-.1-1.2-.4-2.3-1.4-.9-.8-1.4-1.7-1.6-2-.2-.3 0-.5.1-.6l.4-.5c.1-.2.2-.3.3-.5.1-.2 0-.4 0-.5-.1-.1-.7-1.6-.9-2.2-.2-.6-.5-.5-.7-.5h-.6c-.2 0-.5.1-.8.4-.3.3-1 1-1 2.4s1 2.8 1.2 3c.1.2 2 3.1 4.9 4.3.7.3 1.2.5 1.6.6.7.2 1.3.2 1.8.1.5-.1 1.7-.7 1.9-1.4.2-.7.2-1.2.2-1.4-.1-.1-.3-.2-.6-.3zM12 2a10 10 0 0 0-8.6 15.1L2 22l5-1.3A10 10 0 1 0 12 2zm0 18.2c-1.5 0-3-.4-4.2-1.2l-.3-.2-3 .8.8-2.9-.2-.3A8.2 8.2 0 1 1 12 20.2z"/></svg><span>تابع قناتنا على واتساب</span></a>
   <div class="bismillah">بِسْمِ اللَّهِ الرَّحْمَٰنِ الرَّحِيمِ</div>
   <div class="ornament">◆ ◆ ◆</div>
 </header>
@@ -1772,6 +1777,34 @@ function getCity(){
   const idx = saved? saved.i : 0;
   return CITIES[idx] || CITIES[0];
 }
+
+/* ---------- background prayer notifications (Web Push) ---------- */
+const PUSH_API='https://mehrab-prayer-push.hamodedarwish86.workers.dev';
+function pushSupported(){ return 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window; }
+function urlB64(b){ b=b.replace(/-/g,'+').replace(/_/g,'/'); while(b.length%4) b+='='; const r=atob(b); return Uint8Array.from(r,c=>c.charCodeAt(0)); }
+function pushCityPayload(){ const saved=LS.get('mal_city',null); if(saved&&saved.custom){ const c=saved.custom; return {custom:{lat:c[1],lng:c[2],tz:c[3]}}; } return {i:saved?saved.i:0}; }
+async function syncPush(opts){
+  opts=opts||{};
+  try{
+    const cfg=LS.get('mal_notif',{on:false,before:0});
+    if(!pushSupported()||Notification.permission!=='granted'||!cfg.on) return false;
+    const reg=await navigator.serviceWorker.ready;
+    let sub=await reg.pushManager.getSubscription();
+    if(!sub){
+      const k=await (await fetch(PUSH_API+'/vapid')).json();
+      sub=await reg.pushManager.subscribe({userVisibleOnly:true,applicationServerKey:urlB64(k.key)});
+    }
+    const r=await fetch(PUSH_API+'/subscribe',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({sub:sub.toJSON(),city:pushCityPayload(),before:cfg.before||0,welcome:!!opts.welcome})});
+    window._pushOn=r.ok; return r.ok;
+  }catch(e){ return false; }
+}
+async function unsubPush(){
+  try{
+    if(!pushSupported()) return;
+    const reg=await navigator.serviceWorker.ready; const sub=await reg.pushManager.getSubscription();
+    if(sub){ try{ await fetch(PUSH_API+'/unsubscribe',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({endpoint:sub.endpoint})}); }catch(e){} await sub.unsubscribe(); }
+  }catch(e){}
+}
 let pTimer=null, notifTimers=[];
 function nextPrayerInfo(city){
   const now=new Date(); let list=computePrayers(city,now).filter(x=>!x.noadhan);
@@ -1797,7 +1830,7 @@ function scheduleNotifs(){
       if(delay>0 && delay<2147000000){
         notifTimers.push(setTimeout(()=>{
           const msg = cfg.before? `بقي ${AR_NUM(cfg.before)} دقائق على أذان ${x.n}` : `حان الآن موعد أذان ${x.n} — ${city[0]}`;
-          if('Notification' in window && Notification.permission==='granted'){ try{ new Notification('محرابُ العلم',{body:msg}); }catch(e){} }
+          if(!window._pushOn && 'Notification' in window && Notification.permission==='granted'){ try{ new Notification('محرابُ العلم',{body:msg}); }catch(e){} }
           showToast('🕌 '+msg);
         }, delay));
       }
@@ -1811,16 +1844,21 @@ async function toggleNotif(){
     cfg.on=true;
   } else cfg.on=false;
   LS.set('mal_notif',cfg); scheduleNotifs(); vPrayer();
+  if(cfg.on){
+    if(!pushSupported()) showToast('للإشعارات والتطبيق مغلق: ثبّت الموقع على الشاشة الرئيسية (على الآيفون: مشاركة ← إضافة إلى الشاشة الرئيسية)');
+    else if(Notification.permission==='denied') showToast('الإشعارات محظورة لهذا الموقع، فعّلها من إعدادات المتصفح');
+    else syncPush({welcome:true}).then(ok=>{ if(!ok) showToast('تعذّر تفعيل الإشعارات في الخلفية الآن، جرّب لاحقاً'); });
+  } else unsubPush();
 }
-function setBefore(v){ const cfg=LS.get('mal_notif',{on:false,before:0}); cfg.before=+v; LS.set('mal_notif',cfg); scheduleNotifs(); }
-function setCity(i){ LS.set('mal_city',{i:+i}); scheduleNotifs(); vPrayer(); }
+function setBefore(v){ const cfg=LS.get('mal_notif',{on:false,before:0}); cfg.before=+v; LS.set('mal_notif',cfg); scheduleNotifs(); syncPush(); }
+function setCity(i){ LS.set('mal_city',{i:+i}); scheduleNotifs(); syncPush(); vPrayer(); }
 function useMyLocation(){
   if(!navigator.geolocation){ showToast('المتصفح لا يدعم تحديد الموقع'); return; }
   navigator.geolocation.getCurrentPosition(pos=>{
     const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
     const lat=pos.coords.latitude, lng=pos.coords.longitude;
     let mk='MWL'; if(tz==='Africa/Cairo') mk='EG'; else if(tz==='Asia/Riyadh') mk='UQ';
-    LS.set('mal_city',{custom:['موقعي الحالي',lat,lng,tz,mk]}); scheduleNotifs(); vPrayer();
+    LS.set('mal_city',{custom:['موقعي الحالي',lat,lng,tz,mk]}); scheduleNotifs(); syncPush(); vPrayer();
   },()=>showToast('تعذّر تحديد موقعك — اختر مدينتك من القائمة'),{timeout:10000});
 }
 function vPrayer(){
@@ -1880,7 +1918,7 @@ route();
 </script>
 <button id="installBtn" hidden style="position:fixed;bottom:96px;left:16px;z-index:999;background:var(--gold);color:#07110f;border:none;border-radius:999px;padding:10px 20px;font-family:inherit;font-size:16px;font-weight:bold;box-shadow:0 4px 18px rgba(0,0,0,.5);cursor:pointer">تثبيت التطبيق</button>
 <script>
-if('serviceWorker' in navigator){navigator.serviceWorker.register('sw.js').catch(function(){});}
+if('serviceWorker' in navigator){navigator.serviceWorker.register('sw.js').then(function(){ try{ syncPush(); }catch(e){} }).catch(function(){});}
 (function(){
   var deferred=null, btn=document.getElementById('installBtn');
   window.addEventListener('beforeinstallprompt',function(e){e.preventDefault();deferred=e;btn.hidden=false;});
