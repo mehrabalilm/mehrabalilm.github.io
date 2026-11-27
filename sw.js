@@ -1,4 +1,4 @@
-const CACHE = 'mehrab-v16';
+const CACHE = 'mehrab-v17';
 const ASSETS = ['./', './index.html', './manifest.webmanifest', './icons/icon-192-v3.png', './icons/icon-512-v3.png', './icons/badge-96.png', './takbeer.mp3',
   ];
 self.addEventListener('install', e => {

@@ -307,6 +307,21 @@ footer .src{color:var(--ink-dim)}
 .resume .ic{font-size:26px}.resume .t1{color:var(--gold2);font-family:'Aref Ruqaa',serif;font-size:20px}
 .resume .t2{color:var(--ink-dim);font-size:15px}
 .next-prayer{text-align:center;background:linear-gradient(160deg,var(--card),var(--bg2));border:1px solid var(--border);border-radius:16px;padding:18px;margin:14px 0}
+.qbox{text-align:center;background:linear-gradient(160deg,var(--card),var(--bg2));border:1px solid var(--border);border-radius:16px;padding:18px;margin:14px 0;transition:border-color .2s,box-shadow .2s}
+.qbox.qok{border-color:var(--green);box-shadow:0 0 18px rgba(63,156,120,.45)}
+.qwrap{position:relative;width:210px;height:210px;margin:0 auto}
+.qdial{position:absolute;inset:0;border-radius:50%;border:2px solid var(--gold-dim);background:radial-gradient(circle,var(--bg2),var(--bg));transition:transform .1s linear}
+.qdial span{position:absolute;font-size:15px;color:var(--ink-dim)}
+.qdial .qn{top:6px;left:50%;transform:translateX(-50%);color:var(--gold2);font-weight:700}
+.qdial .qs{bottom:6px;left:50%;transform:translateX(-50%)}
+.qdial .qe{right:8px;top:50%;transform:translateY(-50%)}
+.qdial .qw{left:8px;top:50%;transform:translateY(-50%)}
+.qarrow{position:absolute;inset:0;transition:transform .1s linear;pointer-events:none}
+.qarrow::before{content:"";position:absolute;left:50%;top:32px;bottom:50%;width:4px;margin-left:-2px;background:linear-gradient(var(--gold2),var(--gold));border-radius:3px}
+.qtip{position:absolute;left:50%;top:6px;transform:translateX(-50%);font-size:30px;line-height:1}
+.qdeg{font-size:22px;color:var(--gold2);margin-top:12px}
+.qmsg{font-size:17px;min-height:26px;margin-top:6px}
+.qhead{font-size:13px;color:var(--ink-faint);margin-top:4px}
 .next-prayer .np-l{color:var(--ink-dim);font-size:15px}.next-prayer .np-n{font-family:'Aref Ruqaa',serif;color:var(--gold2);font-size:34px;line-height:1.5}
 .next-prayer .np-c{font-size:26px;color:var(--ink);letter-spacing:.06em;direction:ltr}
 .sel-row{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin:12px 0}
@@ -1891,6 +1906,7 @@ function vPrayer(){
   </div>
   <div class="next-prayer"><div class="np-l">الصلاة القادمة</div><div class="np-n ruqaa" id="npn">…</div><div class="np-c" id="npc">--:--:--</div></div>
   <div class="ptimes" id="ptimes"></div>
+  <div class="sel-row"><button class="btn" onclick="location.hash='#/qibla'">🧭 اتجاه القبلة</button></div>
   <div class="sel-row">
     <button class="btn ${cfg.sound?'on':''}" onclick="toggleSound()">${cfg.sound?'🔊 صوت التكبير مفعّل (والتطبيق مفتوح)':'🔇 فعّل صوت التكبير عند الأذان'}</button>
   </div>
@@ -1913,9 +1929,109 @@ function vPrayer(){
 }
 scheduleNotifs();
 
+/* ---------- qibla ---------- */
+const KAABA=[21.4225,39.8262];
+function qiblaBearing(lat,lng){
+  const r=Math.PI/180, f1=lat*r, f2=KAABA[0]*r, dl=(KAABA[1]-lng)*r;
+  const y=Math.sin(dl)*Math.cos(f2), x=Math.cos(f1)*Math.sin(f2)-Math.sin(f1)*Math.cos(f2)*Math.cos(dl);
+  return (Math.atan2(y,x)/r+360)%360;
+}
+function qiblaDistKm(lat,lng){
+  const r=Math.PI/180, dl=(KAABA[1]-lng)*r, f1=lat*r, f2=KAABA[0]*r;
+  const a=Math.sin((f2-f1)/2)**2+Math.cos(f1)*Math.cos(f2)*Math.sin(dl/2)**2;
+  return 6371*2*Math.asin(Math.sqrt(a));
+}
+let _qH=null, _qT=null, _qHeading=null, _qHit=false, _qGot=false;
+function stopQibla(){
+  window.removeEventListener('deviceorientationabsolute',_qH,true);
+  window.removeEventListener('deviceorientation',_qH,true);
+  _qH=null; clearTimeout(_qT); _qT=null;
+}
+function qCity(i){ LS.set('mal_city',{i:+i}); try{scheduleNotifs();syncPush();}catch(e){} vQibla(); }
+function qLoc(){
+  const st=document.getElementById('qstatus');
+  if(!navigator.geolocation){ if(st) st.textContent='المتصفح لا يدعم تحديد الموقع، اختر مدينتك من القائمة'; return; }
+  if(st) st.textContent='جارٍ تحديد موقعك…';
+  navigator.geolocation.getCurrentPosition(pos=>{
+    const tz=Intl.DateTimeFormat().resolvedOptions().timeZone;
+    let mk='MWL'; if(tz==='Africa/Cairo') mk='EG'; else if(tz==='Asia/Riyadh') mk='UQ';
+    LS.set('mal_city',{custom:['موقعي الحالي',pos.coords.latitude,pos.coords.longitude,tz,mk]});
+    try{scheduleNotifs();syncPush();}catch(e){} vQibla();
+  },()=>{ const s=document.getElementById('qstatus'); if(s) s.textContent='تعذّر تحديد موقعك، اختر مدينتك من القائمة'; },{timeout:10000,maximumAge:60000});
+}
+function qHeadingFrom(e){
+  if(typeof e.webkitCompassHeading==='number' && !isNaN(e.webkitCompassHeading)) return e.webkitCompassHeading;
+  if(e.alpha==null) return null;
+  if(e.type!=='deviceorientationabsolute' && e.absolute!==true) return null;
+  const r=Math.PI/180, a=e.alpha*r, b=(e.beta||0)*r, g=(e.gamma||0)*r;
+  const cY=Math.cos(g), cZ=Math.cos(a), sX=Math.sin(b), sY=Math.sin(g), sZ=Math.sin(a);
+  let h;
+  if(Math.abs(e.beta||0)<50){ h=(360-e.alpha)%360; }   /* phone held flat: top of phone points to heading */
+  else { const vx=-cZ*sY-sZ*sX*cY, vy=-sZ*sY+cZ*sX*cY; h=Math.atan2(vx,vy)/r; if(h<0) h+=360; }   /* held upright: back of phone */
+  const ang=(screen.orientation&&screen.orientation.angle)||0;
+  return (h+ang)%360;
+}
+async function startQibla(){
+  const q=window._qBearing, st=document.getElementById('qstatus'), btn=document.getElementById('qstart');
+  stopQibla(); _qHeading=null; _qHit=false; _qGot=false;
+  if(!('DeviceOrientationEvent' in window)){ st.textContent='جهازك أو متصفحك لا يوفّر حسّاس البوصلة. استخدم الزاوية المكتوبة أعلاه مع بوصلة أخرى.'; return; }
+  if(typeof DeviceOrientationEvent.requestPermission==='function'){
+    try{ const p=await DeviceOrientationEvent.requestPermission(); if(p!=='granted'){ st.textContent='لم يتم السماح بالوصول إلى حسّاس الحركة. فعّله من إعدادات المتصفح ثم أعد المحاولة.'; return; } }catch(e){ st.textContent='تعذّر طلب إذن الحسّاس'; return; }
+  }
+  btn.textContent='⏳ جارٍ قراءة البوصلة…'; st.textContent='';
+  _qH=function(e){
+    const h=qHeadingFrom(e); if(h==null) return;
+    if(!_qGot){ _qGot=true; btn.textContent='🧭 البوصلة تعمل'; st.textContent=''; document.getElementById('qhint').hidden=false; }
+    if(_qHeading==null) _qHeading=h;
+    else { let d=((h-_qHeading+540)%360)-180; _qHeading=(_qHeading+d*0.25+360)%360; }
+    const rot=(q-_qHeading+360)%360;
+    const arrow=document.getElementById('qarrow'), dial=document.getElementById('qdial');
+    if(arrow) arrow.style.transform=`rotate(${rot}deg)`;
+    if(dial) dial.style.transform=`rotate(${-_qHeading}deg)`;
+    const hd=document.getElementById('qhead'); if(hd) hd.textContent='اتجاه هاتفك: '+AR_NUM(Math.round(_qHeading))+'°';
+    const diff=Math.min(rot,360-rot), ok=diff<=4;
+    const box=document.getElementById('qbox'); if(box) box.classList.toggle('qok',ok);
+    const msg=document.getElementById('qmsg'); if(msg) msg.textContent= ok?'✅ أنت متّجه نحو القبلة': (rot<180?'↻ أدر الهاتف يميناً':'↺ أدر الهاتف يساراً');
+    if(ok && !_qHit){ _qHit=true; try{navigator.vibrate&&navigator.vibrate(60);}catch(_){} } else if(!ok && diff>10) _qHit=false;
+  };
+  window.addEventListener('deviceorientationabsolute',_qH,true);
+  window.addEventListener('deviceorientation',_qH,true);
+  _qT=setTimeout(()=>{ if(!_qGot){
+    btn.textContent='🧭 تشغيل البوصلة';
+    st.textContent='لم يصل أي قراءة من الحسّاس. غالباً الجهاز أو المتصفح لا يدعم البوصلة (أو الصفحة داخل نافذة لا تسمح بالحسّاس). استخدم زاوية القبلة المكتوبة مع بوصلة أخرى، أو افتح الموقع في كروم على أندرويد.';
+  } },3000);
+}
+function vQibla(){
+  setNav('prayer'); unwatchReading(); clearInterval(pTimer); stopQibla();
+  const city=getCity(), saved=LS.get('mal_city',null);
+  const q=qiblaBearing(city[1],city[2]), km=qiblaDistKm(city[1],city[2]);
+  window._qBearing=q;
+  const opts=CITIES.map((c,i)=>`<option value="${i}" ${(!saved||!saved.custom)&&CITIES[saved?saved.i:0]===c?'selected':''}>${c[0]}</option>`).join('');
+  const customOpt=(saved&&saved.custom)?`<option selected>📍 موقعي الحالي</option>`:'';
+  app.innerHTML=`
+  <div class="section-head"><h2 class="ruqaa">اتجاه القبلة</h2><p>${city[0]} · ${AR_NUM(Math.round(km))} كم إلى الكعبة</p></div>
+  <div class="sel-row">
+    <select onchange="qCity(this.value)" aria-label="المدينة">${customOpt}${opts}</select>
+    <button class="btn" onclick="qLoc()">📍 موقعي</button>
+  </div>
+  <div id="qbox" class="qbox">
+    <div class="qwrap"><div id="qdial" class="qdial"><span class="qn">ش</span><span class="qe">ق</span><span class="qs">ج</span><span class="qw">غ</span></div>
+      <div id="qarrow" class="qarrow" style="transform:rotate(${q}deg)"><div class="qtip">🕋</div></div></div>
+    <div class="qdeg ruqaa">${AR_NUM(Math.round(q))}° من الشمال</div>
+    <div id="qmsg" class="qmsg"></div>
+    <div id="qhead" class="qhead"></div>
+  </div>
+  <div class="sel-row"><button id="qstart" class="btn on" onclick="startQibla()">🧭 تشغيل البوصلة</button></div>
+  <div id="qstatus" class="note" role="status"></div>
+  <div id="qhint" class="note" hidden>للمعايرة: حرّك الهاتف في الهواء على شكل رقم ٨ عدة مرات، وأمسكه أفقياً بعيداً عن المعادن والمغناطيس وغطاء الهاتف المغناطيسي.</div>
+  <div class="note">الزاوية المحسوبة (${AR_NUM(Math.round(q))}° من الشمال باتجاه عقارب الساعة) تعتمد على مدينتك المختارة. دقة البوصلة في الهواتف تقريبية (قد تخطئ ٥–١٥ درجة)، فتأكد بمقارنتها بمحراب مسجد قريب. لا يحتاج الموقع إلى إذن الموقع إلا إذا ضغطت «موقعي».</div>
+  <div class="sel-row"><button class="btn" onclick="location.hash='#/prayer'">← مواقيت الصلاة</button></div>`;
+  const sh=app.querySelector('.section-head'); if(sh&&sh.scrollIntoView) sh.scrollIntoView({block:'start'}); else window.scrollTo(0,0);
+}
+
 /* ---------- router ---------- */
 function route(){
-  document.body.classList.remove('reading'); stopPlayer(); unwatchReading(); clearInterval(pTimer);
+  document.body.classList.remove('reading'); stopPlayer(); unwatchReading(); clearInterval(pTimer); try{stopQibla();}catch(e){}
   const h = location.hash || '#/';
   const parts = h.replace(/^#\//,'').split('/');
   if(h==='#/' || h==='#') vHome();
@@ -1928,6 +2044,7 @@ function route(){
   else if(parts[0]==='mushaf') vMushaf();
   else if(parts[0]==='adhkar') vAdhkar();
   else if(parts[0]==='prayer') vPrayer();
+  else if(parts[0]==='qibla') vQibla();
   else vHome();
 }
 window.addEventListener('hashchange', route);
