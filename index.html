@@ -17,7 +17,7 @@
 <meta property="og:title" content="محراب العلم | تحفة الأطفال والجزرية بالشرح والصوت، المصحف الشريف كاملاً، الأذكار ومواقيت الصلاة">
 <meta property="og:description" content="محراب العلم: موقع مجاني لحفظ ومراجعة متن تحفة الأطفال والمقدمة الجزرية بالشرح المبسط والصوت، المصحف الشريف كاملاً مع البحث والتلاوة، أذكار الصباح والمساء، ومواقيت الصلاة. يعمل كتطبيق على الموبايل.">
 <meta property="og:url" content="https://mehrabalilm.github.io/">
-<meta property="og:image" content="https://mehrabalilm.github.io/icons/icon-512.png">
+<meta property="og:image" content="https://mehrabalilm.github.io/icons/icon-512-v3.png">
 <meta name="twitter:card" content="summary">
 <meta name="twitter:title" content="محراب العلم">
 <meta name="twitter:description" content="محراب العلم: موقع مجاني لحفظ ومراجعة متن تحفة الأطفال والمقدمة الجزرية بالشرح المبسط والصوت، المصحف الشريف كاملاً مع البحث والتلاوة، أذكار الصباح والمساء، ومواقيت الصلاة. يعمل كتطبيق على الموبايل.">
@@ -338,7 +338,7 @@ nav.bottom a .ico{font-size:18px}
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="محراب العلم">
 <link rel="manifest" href="manifest.webmanifest">
-<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon-v3.png">
 </head>
 <body>
 
@@ -1820,6 +1820,20 @@ function showToast(msg){
   const t=document.createElement('div'); t.className='toast'; t.textContent=msg; document.body.appendChild(t);
   setTimeout(()=>t.remove(),12000); t.onclick=()=>t.remove();
 }
+let _lastTakbeer=0;
+function playTakbeer(){
+  const cfg=LS.get('mal_notif',{on:false,before:0}); if(!cfg.sound) return;
+  const t=Date.now(); if(t-_lastTakbeer<60000) return; _lastTakbeer=t;
+  try{ const a=new Audio('takbeer.mp3'); a.volume=1; const pr=a.play(); if(pr&&pr.catch) pr.catch(()=>{}); }catch(e){}
+}
+function toggleSound(){
+  const cfg=LS.get('mal_notif',{on:false,before:0}); cfg.sound=!cfg.sound; LS.set('mal_notif',cfg);
+  if(cfg.sound){ _lastTakbeer=0; playTakbeer(); _lastTakbeer=0; }
+  vPrayer();
+}
+if('serviceWorker' in navigator) navigator.serviceWorker.addEventListener('message',e=>{
+  if(e.data&&e.data.type==='prayer-push'&&e.data.tag!=='welcome'&&!/^prayer-.*-before/.test(e.data.tag||'')) playTakbeer();
+});
 function scheduleNotifs(){
   notifTimers.forEach(clearTimeout); notifTimers=[];
   const cfg=LS.get('mal_notif',{on:false,before:0}); if(!cfg.on) return;
@@ -1831,7 +1845,7 @@ function scheduleNotifs(){
         notifTimers.push(setTimeout(()=>{
           const msg = cfg.before? `بقي ${AR_NUM(cfg.before)} دقائق على أذان ${x.n}` : `حان الآن موعد أذان ${x.n} — ${city[0]}`;
           if(!window._pushOn && 'Notification' in window && Notification.permission==='granted'){ try{ new Notification('محرابُ العلم',{body:msg}); }catch(e){} }
-          showToast('🕌 '+msg);
+          showToast('🕌 '+msg); if(!cfg.before) playTakbeer();
         }, delay));
       }
     });
@@ -1877,6 +1891,9 @@ function vPrayer(){
   </div>
   <div class="next-prayer"><div class="np-l">الصلاة القادمة</div><div class="np-n ruqaa" id="npn">…</div><div class="np-c" id="npc">--:--:--</div></div>
   <div class="ptimes" id="ptimes"></div>
+  <div class="sel-row">
+    <button class="btn ${cfg.sound?'on':''}" onclick="toggleSound()">${cfg.sound?'🔊 صوت التكبير مفعّل (والتطبيق مفتوح)':'🔇 فعّل صوت التكبير عند الأذان'}</button>
+  </div>
   <div class="sel-row">
     <button class="btn ${cfg.on?'on':''}" onclick="toggleNotif()">${cfg.on?'🔔 التذكير مفعّل':'🔕 فعّل تذكير الأذان'}</button>
     <select onchange="setBefore(this.value)" aria-label="التذكير قبل الأذان">

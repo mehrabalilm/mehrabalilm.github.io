@@ -1,5 +1,5 @@
-const CACHE = 'mehrab-v15';
-const ASSETS = ['./', './index.html', './manifest.webmanifest', './icons/icon-192.png', './icons/icon-512.png',
+const CACHE = 'mehrab-v16';
+const ASSETS = ['./', './index.html', './manifest.webmanifest', './icons/icon-192-v3.png', './icons/icon-512-v3.png', './icons/badge-96.png', './takbeer.mp3',
   ];
 self.addEventListener('install', e => {
   e.waitUntil(caches.open(CACHE).then(c => c.addAll(ASSETS)).then(() => self.skipWaiting()));
@@ -29,12 +29,17 @@ self.addEventListener('fetch', e => {
 self.addEventListener('push', e => {
   let d = {};
   try { d = e.data ? e.data.json() : {}; } catch (_) {}
+  e.waitUntil(self.clients.matchAll({type:'window'}).then(cs=>cs.forEach(c=>{ if(c.visibilityState==='visible') c.postMessage({type:'prayer-push',tag:d.tag||'prayer'}); })));
   e.waitUntil(self.registration.showNotification(d.title || 'محرابُ العلم', {
     body: d.body || 'حان موعد الصلاة',
-    icon: './icons/icon-192.png',
-    badge: './icons/icon-192.png',
-    tag: d.tag || 'prayer',
+    icon: new URL('./icons/icon-192-v3.png', self.registration.scope).href,
+    badge: new URL('./icons/badge-96.png', './takbeer.mp3', self.registration.scope).href,
+    tag: (d.tag || 'prayer') + '-' + Date.now(),
     renotify: true,
+    silent: false,
+    requireInteraction: true,
+    vibrate: [300, 150, 300, 150, 500],
+    timestamp: Date.now(),
     dir: 'rtl',
     lang: 'ar'
   }));
